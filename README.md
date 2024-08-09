@@ -19,39 +19,40 @@
    # apt install openvpn iperf3 selinux-utils
    # setenforce 0
    ```
-   __Настраиваем сервер__ 
+   __Настраиваем сервер__
+   
    Cоздаем файл-ключ:
    ```
-root@server:~# openvpn --genkey secret /etc/openvpn/static.key
+   root@server:~# openvpn --genkey secret /etc/openvpn/static.key
    ```
-Cоздаем конфигурационный файл OpenVPN /etc/openvpn/server.conf со следующим содержимым:
-```
-dev tap 
-ifconfig 10.10.10.1 255.255.255.0 
-topology subnet 
-secret /etc/openvpn/static.key 
-comp-lzo 
-status /var/log/openvpn-status.log 
-log /var/log/openvpn.log  
-verb 3 
-```
-Создаем service unit для запуска OpenVPN /etc/systemd/system/openvpn@.service со следующим содержимым:
-```
-[Unit] 
-Description=OpenVPN Tunneling Application On %I 
-After=network.target 
-[Service] 
-Type=notify 
-PrivateTmp=true 
-ExecStart=/usr/sbin/openvpn --cd /etc/openvpn/ --config %i.conf 
-[Install] 
-WantedBy=multi-user.target
-```
-Запускаем сервис:
-```
-root@server:~# systemctl start openvpn@server
-root@server:~# systemctl enable openvpn@server
-```
+   Cоздаем конфигурационный файл OpenVPN /etc/openvpn/server.conf со следующим содержимым:
+   ```
+   dev tap 
+   ifconfig 10.10.10.1 255.255.255.0 
+   topology subnet 
+   secret /etc/openvpn/static.key 
+   comp-lzo 
+   status /var/log/openvpn-status.log 
+   log /var/log/openvpn.log  
+   verb 3 
+   ```
+   Создаем service unit для запуска OpenVPN /etc/systemd/system/openvpn@.service со следующим содержимым:
+   ```
+   [Unit] 
+   Description=OpenVPN Tunneling Application On %I 
+   After=network.target 
+   [Service] 
+   Type=notify 
+   PrivateTmp=true 
+   ExecStart=/usr/sbin/openvpn --cd /etc/openvpn/ --config %i.conf 
+   [Install] 
+   WantedBy=multi-user.target
+   ```
+   Запускаем сервис:
+   ```
+   root@server:~# systemctl start openvpn@server
+   root@server:~# systemctl enable openvpn@server
+   ```
 
 __Настраиваем клиент__
 

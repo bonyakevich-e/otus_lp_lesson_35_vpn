@@ -74,3 +74,41 @@
    root@server:~# cp /etc/openvpn/static.key /vagrant/
    root@client:~# cp /vagrant/static.key /etc/openvpn/
    ```
+   Создаем service unit для запуска OpenVPN /etc/systemd/system/openvpn@.service со следующим содержимым:
+   ```
+   [Unit] 
+   Description=OpenVPN Tunneling Application On %I 
+   After=network.target 
+   [Service] 
+   Type=notify 
+   PrivateTmp=true 
+   ExecStart=/usr/sbin/openvpn --cd /etc/openvpn/ --config %i.conf 
+   [Install] 
+   WantedBy=multi-user.target
+   ```
+   Запускаем сервис:
+   ```
+   root@client:~# systemctl start openvpn@server
+   root@client:~# systemctl enable openvpn@server
+   ```
+   Замеряем скорость в туннеле. На сервере запускаем:
+   ```
+   root@server:~# iperf3 -s
+   ```
+   На клиенте:
+   ```
+   root@client:~# iperf3 -c 10.10.10.1 -t 40 -i 5
+   ...
+   ...
+   [  5]   0.00-25.00  sec  1.02 GBytes   350 Mbits/sec  755             sender
+   [  5]   0.00-25.00  sec  0.00 Bytes  0.00 bits/sec                  receiver
+   ```
+   И в обратную сторону:
+   ```
+   root@client:~# iperf3 -c 10.10.10.1 -t 40 -i 5 -R
+   ...
+   ...
+   [  5]   0.00-15.59  sec  0.00 Bytes  0.00 bits/sec                  sender
+   [  5]   0.00-15.59  sec   549 MBytes   295 Mbits/sec                  receiver
+   ```
+   

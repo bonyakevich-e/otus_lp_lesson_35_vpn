@@ -54,5 +54,23 @@
    root@server:~# systemctl enable openvpn@server
    ```
 
-__Настраиваем клиент__
+   __Настраиваем клиент__
 
+   Cоздаем конфигурационный файл OpenVPN /etc/openvpn/server.conf со следующим содержимым:
+   ```
+   dev tap 
+   remote 192.168.56.10 
+   ifconfig 10.10.10.2 255.255.255.0 
+   topology subnet 
+   route 192.168.56.0 255.255.255.0 
+   secret /etc/openvpn/static.key
+   comp-lzo
+   status /var/log/openvpn-status.log 
+   log /var/log/openvpn.log 
+   verb 3 
+   ```
+   Копируем в директорию /etc/openvpn файл-ключ static.key, который был создан на сервере:
+   ```
+   root@server:~# cp /etc/openvpn/static.key /vagrant/
+   root@client:~# cp /vagrant/static.key /etc/openvpn/
+   ```

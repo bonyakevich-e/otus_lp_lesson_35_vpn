@@ -8,10 +8,11 @@
 3. (*) Самостоятельно изучить и настроить ocserv, подключиться с хоста к ВМ
 
 #### Инструкция по выполнению ДЗ:
-1. Настроить VPN между двумя ВМ в tun/tap режимах
-   Запускаем 2 виртуальные машины с помощью Vagrant - server и client
+1. __Настроить VPN между двумя ВМ в tun/tap режимах__
+   Запускаем 2 виртуальные машины с помощью Vagrant - host1 и host2
    ```
-   # vagrant up
+   # vagrant up host1
+   # vagrant up host2
    ```
    Устанавливаем необходимые пакеты на двух серверах и отключаем Selinux:
    ```
@@ -19,11 +20,12 @@
    # apt install openvpn iperf3 selinux-utils
    # setenforce 0
    ```
-   __Настраиваем сервер__
+   __Настраиваем host1__
    
    Cоздаем файл-ключ:
    ```
-   root@server:~# openvpn --genkey secret /etc/openvpn/static.key
+   root@host1:~# openvpn --genkey secret /etc/openvpn/static.key
+   root@host1:~# cp /etc/openvpn/static.key /vagrant/
    ```
    Cоздаем конфигурационный файл OpenVPN /etc/openvpn/server.conf со следующим содержимым:
    ```
@@ -50,11 +52,11 @@
    ```
    Запускаем сервис:
    ```
-   root@server:~# systemctl start openvpn@server
-   root@server:~# systemctl enable openvpn@server
+   root@host1:~# systemctl start openvpn@server
+   root@host1:~# systemctl enable openvpn@server
    ```
 
-   __Настраиваем клиент__
+   __Настраиваем host2__
 
    Cоздаем конфигурационный файл OpenVPN /etc/openvpn/server.conf со следующим содержимым:
    ```
@@ -71,8 +73,7 @@
    ```
    Копируем в директорию /etc/openvpn файл-ключ static.key, который был создан на сервере:
    ```
-   root@server:~# cp /etc/openvpn/static.key /vagrant/
-   root@client:~# cp /vagrant/static.key /etc/openvpn/
+   root@host2:~# cp /vagrant/static.key /etc/openvpn/
    ```
    Создаем service unit для запуска OpenVPN /etc/systemd/system/openvpn@.service со следующим содержимым:
    ```
@@ -88,16 +89,16 @@
    ```
    Запускаем сервис:
    ```
-   root@client:~# systemctl start openvpn@server
-   root@client:~# systemctl enable openvpn@server
+   root@host2:~# systemctl start openvpn@server
+   root@host2:~# systemctl enable openvpn@server
    ```
-   Замеряем скорость в туннеле. На сервере запускаем:
+   Замеряем скорость в туннеле. На host1 запускаем:
    ```
-   root@server:~# iperf3 -s
+   root@host1:~# iperf3 -s
    ```
-   На клиенте:
+   На host2:
    ```
-   root@client:~# iperf3 -c 10.10.10.1 -t 40 -i 5
+   root@host2:~# iperf3 -c 10.10.10.1 -t 40 -i 5
    ...
    ...
    [  5]   0.00-25.00  sec  1.02 GBytes   350 Mbits/sec  755             sender
@@ -105,7 +106,7 @@
    ```
    И в обратную сторону:
    ```
-   root@client:~# iperf3 -c 10.10.10.1 -t 40 -i 5 -R
+   root@host2:~# iperf3 -c 10.10.10.1 -t 40 -i 5 -R
    ...
    ...
    [  5]   0.00-15.59  sec  0.00 Bytes  0.00 bits/sec                  sender
@@ -114,7 +115,7 @@
 
    Меняем в конфигурационных файлах режим работы с tap на tun.  Замеряем скорость соединения:
    ```
-   root@client:~# iperf3 -c 10.10.10.1 -t 40 -i 5
+   root@host2:~# iperf3 -c 10.10.10.1 -t 40 -i 5
    ...
    ...
    [  5]   0.00-40.00  sec  1.54 GBytes   332 Mbits/sec  859             sender
@@ -124,7 +125,7 @@
    ```
    И в обратную сторону:
    ```
-   root@client:~# iperf3 -c 10.10.10.1 -t 40 -i 5 -R
+   root@host2:~# iperf3 -c 10.10.10.1 -t 40 -i 5 -R
    ...
    ...
    [  5]   0.00-40.04  sec  1.43 GBytes   308 Mbits/sec  234             sender
@@ -133,3 +134,114 @@
    ...
    ```
    __Выводы:__ ...
+
+2. __RAS на базе OpenVPN__
+
+   Поднимаем две виртуальных машины "server" и "client".  
+   ```
+   # vagrant up server
+   # vagrant up client
+   ```
+   Устанавливаем необходимые пакеты:
+   ```
+   root@server:~# apt update
+	root@server:~# apt install openvpn easy-rsa selinux-utils
+   ```
+   Отключаем SELinux.
+   
+   Переходим в директорию /etc/openvpn и инициализируем PKI:
+   ```
+   root@server:~# cd /etc/openvpn
+   root@server:/etc/openvpn# /usr/share/easy-rsa/easyrsa init-pki
+   ```
+   Генерируем необходимые ключи и сертификаты для сервера:
+   ```
+   root@server:/etc/openvpn# /usr/share/easy-rsa/easyrsa build-ca nopass
+   root@server:/etc/openvpn# echo 'rasvpn' | /usr/share/easy-rsa/easyrsa gen-req server nopass
+   root@server:/etc/openvpn# echo 'yes' | /usr/share/easy-rsa/easyrsa sign-req server server
+   root@server:/etc/openvpn# /usr/share/easy-rsa/easyrsa gen-dh
+   root@server:/etc/openvpn# openvpn --genkey secret ca.key
+   ```
+   Генерируем необходимые ключи и сертификаты для клиента:
+   ```
+   root@server:/etc/openvpn# echo 'client' | /usr/share/easy-rsa/easyrsa gen-req client nopass
+   root@server:/etc/openvpn# echo 'yes' | /usr/share/easy-rsa/easyrsa sign-req client client
+   root@server:/etc/openvpn# cp /etc/openvpn/pki/issued/client.crt /vagrant
+   root@server:/etc/openvpn# cp /etc/openvpn/pki/private/client.key /vagrant
+   root@server:/etc/openvpn# cp /etc/openvpn/pki/ca.crt /vagrant
+   ```
+   Создаем конфигурационный файл сервера /etc/openvpn/server.conf:
+   ```
+   port 1207 
+   proto udp 
+   dev tun 
+   ca /etc/openvpn/pki/ca.crt 
+   cert /etc/openvpn/pki/issued/server.crt 
+   key /etc/openvpn/pki/private/server.key 
+   dh /etc/openvpn/pki/dh.pem 
+   server 10.10.10.0 255.255.255.0 
+   ifconfig-pool-persist ipp.txt 
+   client-to-client 
+   client-config-dir /etc/openvpn/client 
+   keepalive 10 120 
+   comp-lzo 
+   persist-key 
+   persist-tun 
+   status /var/log/openvpn-status.log 
+   log /var/log/openvpn.log 
+   verb 3
+   ```
+   Зададим параметр iroute для клиента:
+   ```
+   root@server:/etc/openvpn# echo 'iroute 10.10.10.0 255.255.255.0' > /etc/openvpn/client/client
+   ```
+   Запускаем сервис (при необходимости создать файл юнита как в задании 1):
+   ```
+   root@server:/etc/openvpn# systemctl start openvpn@server
+   root@server:/etc/openvpn# systemctl enable openvpn@server
+   ```
+   На __клиенте__ создаем файл /etc/openvpn/client.conf со следующим содержимым:
+   ```
+   dev tun 
+   proto udp 
+   remote 192.168.56.30 1207 
+   client 
+   resolv-retry infinite 
+   remote-cert-tls server 
+   ca ./ca.crt 
+   cert ./client.crt 
+   key ./client.key 
+   route 10.10.10.0 255.255.255.0 
+   persist-key 
+   persist-tun 
+   comp-lzo 
+   verb 3 
+   ```
+   Копируем в одну директорию с client.conf файлы с сервера:
+   ```
+   root@client:/etc/openvpn# cd /etc/openvpn
+   root@client:/etc/openvpn# cp /vagrant/ca.crt .
+   root@client:/etc/openvpn# cp /vagrant/client.crt .
+   root@client:/etc/openvpn# cp /vagrant/client.key .
+   ```
+   Далее можно проверить подключение с помощью:
+   ```
+   openvpn --config client.conf
+   ```
+   При успешном подключении проверяем пинг по внутреннему IP адресу  сервера в туннеле:
+   ```
+   vagrant@client:~$ ping -c 4 10.10.10.1
+   PING 10.10.10.1 (10.10.10.1) 56(84) bytes of data.
+   64 bytes from 10.10.10.1: icmp_seq=1 ttl=63 time=0.621 ms
+   64 bytes from 10.10.10.1: icmp_seq=2 ttl=63 time=0.719 ms
+   64 bytes from 10.10.10.1: icmp_seq=3 ttl=63 time=0.656 ms
+   64 bytes from 10.10.10.1: icmp_seq=4 ttl=63 time=0.660 ms
+
+   --- 10.10.10.1 ping statistics ---
+   4 packets transmitted, 4 received, 0% packet loss, time 3064ms
+   rtt min/avg/max/mdev = 0.621/0.664/0.719/0.035 ms
+   ```
+   Также проверяем командой ip r (netstat -rn) на хостовой машине что сеть туннеля импортирована в таблицу маршрутизации:
+   ```
+   
+   ```

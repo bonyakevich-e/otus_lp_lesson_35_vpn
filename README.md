@@ -145,7 +145,7 @@
    Устанавливаем необходимые пакеты:
    ```
    root@server:~# apt update
-	root@server:~# apt install openvpn easy-rsa selinux-utils
+   root@server:~# apt install openvpn easy-rsa selinux-utils
    ```
    Отключаем SELinux.
    
